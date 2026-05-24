@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <!-- 🔧 ВАЖНО ДЛЯ МОБИЛЬНЫХ: Запрет зума и фиксация масштаба -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SandboxT — Mobile Ready</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        /* 🔧 ВАЖНО ДЛЯ МОБИЛЬНЫХ: Глобальный запрет жестов браузера */
+        body {
+            background: #0f0f1a;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 15px;
+            overflow-x: auto;
+            touch-action: none; /* Отключает свайпы/скролл браузера */
+            -webkit-user-select: none; /* Запрет выделения текста на iOS */
+            user-select: none;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            font-size: 1.8em;
+            background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        #container {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        canvas {
+            display: block;
+            border: 2px solid #2a2a3a;
+            image-rendering: pixelated;
+            background: #0a0a14;
+            width: 800px !important;
+            height: 600px !important;
+            min-width: 800px !important;
+            min-height: 600px !important;
+            max-width: 800px !important;
+            max-height: 600px !important;
+            flex-shrink: 0;
+            cursor: none;
+            touch-action: none; /* Отключает жесты конкретно на канвасе */
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 200px;
+        }
+
+        .panel {
+            background: #161b2b;
+            border: 1px solid #252a3a;
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .panel h3 {
+            font-size: 0.75em;
+            margin-bottom: 8px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+        }
+
+        .btn {
+            padding: 7px 4px;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.7em;
+            font-weight: 600;
+            color: #fff;
+            transition: all 0.15s;
+            text-align: center;
+            /* Улучшаем нажатие на тачскринах */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .btn:hover { transform: scale(1.05); filter: brightness(1.2); }
+        .btn:active { transform: scale(0.95); } /* Эффект нажатия */
+        .btn.active { border-color: #fff; box-shadow: 0 0 8px rgba(255,255,255,0.4); }
+        
+        .btn[data-el="sand"] { background: #e6b422; }
+        .btn[data-el="water"] { background: #2176ff; }
+        .btn[data-el="fire"] { background: #ff4500; }
+        .btn[data-el="stone"] { background: #808080; }
+        .btn[data-el="wood"] { background: #8B4513; }
+        .btn[data-el="metal"] { background: #708090; }
+        .btn[data-el="glass"] { background: #add8e6; color: #333; }
+        .btn[data-el="plant"] { background: #228B22; }
+        .btn[data-el="oil"] { background: #3b2507; }
+        .btn[data-el="acid"] { background: #7fff00; color: #333; }
+        .btn[data-el="lava"] { background: #cf1020; }
+        .btn[data-el="gunpowder"] { background: #444; }
+        .btn[data-el="steam"] { background: #c0c0c0; color: #333; }
+        .btn[data-el="ice"] { background: #a8d8ea; color: #333; }
+        .btn[data-el="cloner"] { background: linear-gradient(135deg, #ff00ff, #00ffff); }
+        .btn[data-el="erase"] { background: #ff0040; }
+        .btn[data-el="ash"] { background: #555; color: #ccc; }
+
+        .action-btn {
+            width: 100%;
+            margin-top: 5px;
+            padding: 8px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .clear { background: #ff4757; }
+        .pause { background: #ffa502; }
+
+        #info { font-size: 0.7em; color: #777; text-align: center; line-height: 1.4; }
+        .hint { font-size: 0.65em; color: #555; text-align: center; margin-top: 8px; }
+
+        #cursor {
+            position: fixed;
+            pointer-events: none;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            transition: width 0.1s, height 0.1s, border-color 0.1s;
+            mix-blend-mode: difference;
+        }
+
+        /* 🔧 АДАПТИВНОСТЬ ДЛЯ ТЕЛЕФОНОВ */
+        @media (max-width: 850px) {
+            body {
+                padding: 5px;
+                overflow: hidden; /* Запрещаем скролл всей страницы */
+            }
+            
+            #container {
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            }
+
+            canvas {
+                width: 100% !important; /* Канвас на всю ширину экрана */
+                height: auto !important;
+                max-height: 50vh; /* Но не больше половины высоты экрана */
+                min-width: auto;
+                min-height: auto;
+                border-radius: 8px;
+            }
+
+            .sidebar {
+                width: 100%;
+                min-width: auto;
+                max-height: 45vh; /* Ограничиваем высоту панели */
+                overflow-y: auto; /* Добавляем скролл внутри панели если нужно */
+            }
+
+            .grid {
+                grid-template-columns: repeat(4, 1fr); /* 4 кнопки в ряд на телефоне */
+            }
+
+            .btn {
+                padding: 10px 2px; /* Кнопки крупнее для пальцев */
+                font-size: 0.75em;
+            }
+            
+            #cursor {
+                display: none !important; /* Скрываем курсор на тачскрине */
+            }
+            
+            .hint {
+                display: none; /* Скрываем подсказку про мышь на телефоне */
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>🏖️ SandboxT</h1>
+    <div id="container">
+        <canvas id="canvas" width="800" height="600"></canvas>
+        <div class="sidebar">
+            <div class="panel">
+                <h3>Элементы</h3>
+                <div class="grid">
+                    <button class="btn active" data-el="sand">🏜️ Песок</button>
+                    <button class="btn" data-el="water">💧 Вода</button>
+                    <button class="btn" data-el="fire">🔥 Огонь</button>
+                    <button class="btn" data-el="stone">🪨 Камень</button>
+                    <button class="btn" data-el="wood">🪵 Дерево</button>
+                    <button class="btn" data-el="metal">⚙️ Металл</button>
+                    <button class="btn" data-el="glass">🔷 Стекло</button>
+                    <button class="btn" data-el="plant">🌿 Растение</button>
+                    <button class="btn" data-el="oil">🛢️ Нефть</button>
+                    <button class="btn" data-el="acid">🧪 Кислота</button>
+                    <button class="btn" data-el="lava">🌋 Лава</button>
+                    <button class="btn" data-el="gunpowder">💣 Порох</button>
+                    <button class="btn" data-el="steam">💨 Пар</button>
+                    <button class="btn" data-el="ice">🧊 Лёд</button>
+                    <button class="btn" data-el="cloner">🧬 Клонер</button>
+                    <button class="btn" data-el="ash">🌫️ Пепел</button>
+                    <button class="btn" data-el="erase">❌ Ластик</button>
+                </div>
+            </div>
+            <div class="panel">
+                <h3>Управление</h3>
+                <button class="action-btn clear" id="clearBtn">🗑️ Очистить</button>
+                <button class="action-btn pause" id="btnPause">⏸️ Пауза</button>
+                <div style="margin-top:8px; font-size:0.75em;">
+                    <label>Кисть: <span id="brushVal">3</span></label>
+                    <input type="range" id="brushRange" min="1" max="12" value="3" style="width:100%; margin-top:4px; accent-color:#4d96ff;">
+                </div>
+            </div>
+            <div class="panel">
+                <div id="info">Частиц: 0 | FPS: 60</div>
+            </div>
+        </div>
+    </div>
+    <p class="hint">ЛКМ — рисовать | ПКМ — стирать | Колёсико — размер кисти</p>
+    <div id="cursor"></div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d', { alpha: false });
+const cursorEl = document.getElementById('cursor');
+const COLS = 200, ROWS = 150, CELL = 4;
+const WIDTH = COLS * CELL, HEIGHT = ROWS * CELL;
+
+const EMPTY=0, SAND=1, WATER=2, FIRE=3, STONE=4, WOOD=5, METAL=6, GLASS=7, PLANT=8, OIL=9, ACID=10, LAVA=11, GUNPOWDER=12, STEAM=13, ICE=14, CLONER=15, ASH=16;
+
+let grid = new Uint8Array(COLS * ROWS);
+let life = new Uint16Array(COLS * ROWS);
+let updated = new Uint8Array(COLS * ROWS);
+let colors = new Uint32Array(COLS * ROWS);
+
+const idx = (x, y) => y * COLS + x;
+const inBounds = (x, y) => x >= 0 && x < COLS && y >= 0 && y < ROWS;
+
+function swap(i1, i2) {
+    [grid[i1], grid[i2]] = [grid[i2], grid[i1]];
+    [life[i1], life[i2]] = [life[i2], life[i1]];
+    [colors[i1], colors[i2]] = [colors[i2], colors[i1]];
+    updated[i1] = 1; updated[i2] = 1;
+}
+
+function pack(r, g, b) { return (255 << 24) | (b << 16) | (g << 8) | r; }
+
+const BASE_COLORS = {
+    [EMPTY]: pack(10, 10, 20), [SAND]: pack(220, 170, 40), [WATER]: pack(30, 110, 240),
+    [FIRE]: pack(255, 70, 0), [STONE]: pack(110, 110, 110), [WOOD]: pack(120, 60, 20),
+    [METAL]: pack(100, 120, 130), [GLASS]: pack(180, 210, 240), [PLANT]: pack(30, 120, 30),
+    [OIL]: pack(50, 30, 10), [ACID]: pack(110, 240, 20), [LAVA]: pack(200, 20, 30),
+    [GUNPOWDER]: pack(60, 60, 60), [STEAM]: pack(180, 180, 190), [ICE]: pack(150, 200, 230),
+    [CLONER]: pack(240, 0, 240), [ASH]: pack(70, 70, 70)
+};
+
+function varyColor(type) {
+    let c = BASE_COLORS[type];
+    let r = (c & 255), g = (c >> 8) & 255, b = (c >> 16) & 255;
+    let n = (Math.random() - 0.5) * 10;
+    r = Math.max(0, Math.min(255, r + n));
+    g = Math.max(0, Math.min(255, g + n));
+    b = Math.max(0, Math.min(255, b + n));
+    return pack(r | 0, g | 0, b | 0);
+}
+
+const DENSITY = { [STEAM]:0, [FIRE]:0, [OIL]:1, [WATER]:2, [ACID]:2, [SAND]:5, [GUNPOWDER]:5, [LAVA]:6, [ASH]:4 };
+const isFluid = t => t === WATER || t === OIL || t === ACID || t === LAVA;
+const isGas = t => t === FIRE || t === STEAM;
+
+const ELEMENT_CURSOR_COLORS = {
+    [SAND]: '#e6b422', [WATER]: '#2176ff', [FIRE]: '#ff4500',
+    [STONE]: '#808080', [WOOD]: '#8B4513', [METAL]: '#708090',
+    [GLASS]: '#add8e6', [PLANT]: '#228B22', [OIL]: '#3b2507',
+    [ACID]: '#7fff00', [LAVA]: '#cf1020', [GUNPOWDER]: '#444',
+    [STEAM]: '#c0c0c0', [ICE]: '#a8d8ea', [CLONER]: '#ff00ff',
+    [EMPTY]: '#ff0040', [ASH]: '#555'
+};
+
+function step() {
+    updated.fill(0);
+    
+    for (let y = ROWS - 1; y >= 0; y--) {
+        for (let x = 0; x < COLS; x++) {
+            let i = idx(x, y);
+            let type = grid[i];
+            if (type === EMPTY || updated[i]) continue;
+
+            if (type === ASH) {
+                if (y+1 < ROWS) {
+                    let below = idx(x, y+1);
+                    if (grid[below] === EMPTY) { swap(i, below); continue; }
+                    if (grid[below] === WATER && Math.random() < 0.5) { swap(i, below); continue; }
+                    
+                    let d = Math.random() < 0.5 ? 1 : -1;
+                    if (inBounds(x+d, y+1) && grid[idx(x+d,y+1)] === EMPTY) { swap(i, idx(x+d,y+1)); continue; }
+                    if (inBounds(x-d, y+1) && grid[idx(x-d,y+1)] === EMPTY) { swap(i, idx(x-d,y+1)); continue; }
+                }
+                continue;
+            }
+
+            if (type === ICE) {
+                let meltChance = 0.002;
+                if (y + 1 < ROWS && grid[idx(x, y + 1)] === FIRE) meltChance *= 1.5;
+                
+                let lavaNearby = false;
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        if (dx === 0 && dy === 0) continue;
+                        let nx = x + dx, ny = y + dy;
+                        if (inBounds(nx, ny) && grid[idx(nx, ny)] === LAVA) {
+                            lavaNearby = true; break;
+                        }
+                    }
+                    if (lavaNearby) break;
+                }
+                if (lavaNearby) meltChance *= 10;
+                
+                if (Math.random() < meltChance) {
+                    grid[i] = WATER;
+                    colors[i] = varyColor(WATER);
+                }
+                continue;
+            }
+
+            if (type === SAND || type === GUNPOWDER) {
+                if (y+1 < ROWS) {
+                    let below = idx(x, y+1);
+                    if (grid[below] === EMPTY) { swap(i, below); continue; }
+                    let d = Math.random() < 0.5 ? 1 : -1;
+                    if (inBounds(x+d, y+1) && grid[idx(x+d,y+1)] === EMPTY) { swap(i, idx(x+d,y+1)); continue; }
+                    if (inBounds(x-d, y+1) && grid[idx(x-d,y+1)] === EMPTY) { swap(i, idx(x-d,y+1)); continue; }
+                }
+            }
+            else if (isFluid(type)) {
+                if (y+1 < ROWS && grid[idx(x,y+1)] === EMPTY) { swap(i, idx(x,y+1)); continue; }
+                let dir = Math.random() < 0.5 ? 1 : -1;
+                for (let s = 1; s <= 5; s++) {
+                    let nx = x + dir * s;
+                    if (!inBounds(nx, y)) break;
+                    let ni = idx(nx, y);
+                    if (grid[ni] === EMPTY) { swap(i, ni); break; }
+                    if (grid[ni] !== type) break;
+                }
+            }
+            else if (isGas(type)) {
+                life[i]--;
+                if (life[i] <= 0) { 
+                    grid[i] = Math.random() < 0.05 ? ASH : EMPTY;
+                    if (grid[i] === ASH) {
+                        colors[i] = varyColor(ASH);
+                        life[i] = 0;
+                    }
+                    continue; 
+                }
+                colors[i] = varyColor(type);
+                if (y > 0 && grid[idx(x,y-1)] === EMPTY) { swap(i, idx(x,y-1)); continue; }
+                let d = Math.random() < 0.5 ? 1 : -1;
+                if (y > 0 && inBounds(x+d, y-1) && grid[idx(x+d,y-1)] === EMPTY) { swap(i, idx(x+d,y-1)); continue; }
+            }
+            else {
+                colors[i] = varyColor(type);
+            }
+
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    if (!dx && !dy) continue;
+                    let nx = x+dx, ny = y+dy;
+                    if (!inBounds(nx, ny)) continue;
+                    let ni = idx(nx, ny);
+                    let n = grid[ni];
+                    
+                    if (type === FIRE) {
+                        if ((n===WOOD||n===PLANT) && Math.random() < 0.08) {
+                            grid[ni] = FIRE; 
+                            life[ni] = 40+Math.random()*60; 
+                            colors[ni] = varyColor(FIRE);
+                        }
+                        if (n === OIL || n === GUNPOWDER) {
+                            grid[ni] = FIRE; 
+                            life[ni] = n === GUNPOWDER ? 10 : 40+Math.random()*60; 
+                            colors[ni] = varyColor(FIRE);
+                        }
+                        if (n === WATER) {
+                            grid[i] = STEAM; life[i] = 100+Math.random()*80; grid[ni] = EMPTY;
+                        }
+                    }
+                    
+                    if (type === LAVA) {
+                        if (n === WATER) {
+                            grid[i] = STONE; 
+                            grid[ni] = STEAM; 
+                            life[ni] = 120;
+                            colors[i] = varyColor(STONE);
+                        } else if (n === WOOD || n === PLANT) {
+                            if (Math.random() < 0.15) {
+                                grid[ni] = FIRE; 
+                                life[ni] = 40 + Math.random() * 60; 
+                                colors[ni] = varyColor(FIRE);
+                            }
+                        } else if (n === OIL || n === GUNPOWDER) {
+                            grid[ni] = FIRE; 
+                            life[ni] = n === GUNPOWDER ? 10 : 40 + Math.random() * 60; 
+                            colors[ni] = varyColor(FIRE);
+                        }
+                    }
+
+                    if (type === ACID && n !== EMPTY && n !== ACID && n !== GLASS && n !== CLONER) {
+                        if (Math.random() < 0.05) {
+                            grid[i] = n === METAL ? STEAM : EMPTY;
+                            grid[ni] = EMPTY;
+                        }
+                    }
+                    
+                    if (type === CLONER && n !== EMPTY && n !== CLONER && n !== STONE && n !== METAL && n !== GLASS) {
+                        for (let ddy=-1; ddy<=1; ddy++) {
+                            for (let ddx=-1; ddx<=1; ddx++) {
+                                if (!ddx&&!ddy) continue;
+                                let cx=x+ddx, cy=y+ddy;
+                                if (inBounds(cx,cy) && grid[idx(cx,cy)]===EMPTY) {
+                                    grid[idx(cx,cy)] = n;
+                                    colors[idx(cx,cy)] = varyColor(n);
+                                    ddy=2; ddx=2; break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+const imgData = ctx.createImageData(WIDTH, HEIGHT);
+const buf32 = new Uint32Array(imgData.data.buffer);
+
+function draw() {
+    buf32.fill(BASE_COLORS[EMPTY]);
+    for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+            let i = idx(x, y);
+            if (grid[i] === EMPTY) continue;
+            let c = colors[i] || varyColor(grid[i]);
+            let base = (y * CELL) * WIDTH + (x * CELL);
+            for (let py = 0; py < CELL; py++) {
+                for (let px = 0; px < CELL; px++) {
+                    buf32[base + py * WIDTH + px] = c;
+                }
+            }
+        }
+    }
+    ctx.putImageData(imgData, 0, 0);
+}
+
+let current = SAND, brush = 3, mDown = false, lx = -1, ly = -1;
+let mouseX = 0, mouseY = 0;
+
+// 🔧 УНИВЕРСАЛЬНАЯ ФУНКЦИЯ ПОЛУЧЕНИЯ КООРДИНАТ (РАБОТАЕТ И НА ПК, И НА ТЕЛЕФОНЕ)
+function getGridPos(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
+    
+    return {
+        x: Math.max(0, Math.min(COLS-1, Math.floor(x / CELL))),
+        y: Math.max(0, Math.min(ROWS-1, Math.floor(y / CELL)))
+    };
+}
+
+function place(gx, gy, el) {
+    let r = brush;
+    for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+            if (dx*dx + dy*dy > r*r) continue;
+            let px = gx+dx, py = gy+dy;
+            if (!inBounds(px, py)) continue;
+            let i = idx(px, py);
+            
+            if (el === EMPTY) {
+                grid[i] = EMPTY;
+                life[i] = 0;
+                colors[i] = 0;
+            } else if (grid[i] === EMPTY) {
+                grid[i] = el;
+                life[i] = el === FIRE ? 50+Math.random()*60 : el === STEAM ? 150+Math.random()*100 : 0;
+                colors[i] = varyColor(el);
+            }
+        }
+    }
+}
+
+function line(x0,y0,x1,y1,el) {
+    let dx=Math.abs(x1-x0), dy=Math.abs(y1-y0), sx=x0<x1?1:-1, sy=y0<y1?1:-1, err=dx-dy;
+    while(true) {
+        place(x0,y0,el);
+        if(x0===x1 && y0===y1) break;
+        let e2=2*err;
+        if(e2>-dy){ err-=dy; x0+=sx; }
+        if(e2<dx){ err+=dx; y0+=sy; }
+    }
+}
+
+function updateCursor() {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width / WIDTH;
+    const pixelSize = brush * CELL * 2 * scaleX;
+    
+    cursorEl.style.width = pixelSize + 'px';
+    cursorEl.style.height = pixelSize + 'px';
+    
+    const cursorColor = ELEMENT_CURSOR_COLORS[current] || '#ffffff';
+    cursorEl.style.borderColor = cursorColor;
+    
+    if (current === EMPTY) {
+        cursorEl.style.background = `radial-gradient(circle, transparent 40%, ${cursorColor} 40%, ${cursorColor} 45%, transparent 45%)`;
+    } else {
+        cursorEl.style.background = 'transparent';
+    }
+    
+    cursorEl.style.left = mouseX + 'px';
+    cursorEl.style.top = mouseY + 'px';
+}
+
+// 🔧 ОБРАБОТЧИКИ СОБЫТИЙ ДЛЯ МЫШИ И ТАЧСКРИНА
+
+// Мышь
+canvas.addEventListener('mousedown', e => {
+    e.preventDefault();
+    mDown = true;
+    const pos = getGridPos(e.clientX, e.clientY);
+    lx = pos.x; ly = pos.y;
+    place(lx, ly, current);
+});
+
+canvas.addEventListener('mousemove', e => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    updateCursor();
+    
+    if (mDown) {
+        const pos = getGridPos(e.clientX, e.clientY);
+        if (lx !== -1) line(lx, ly, pos.x, pos.y, current);
+        lx = pos.x; ly = pos.y;
+    }
+});
+
+canvas.addEventListener('mouseup', () => { mDown = false; lx = -1; ly = -1; });
+canvas.addEventListener('mouseleave', () => { mDown = false; lx = -1; ly = -1; cursorEl.style.display = 'none'; });
+canvas.addEventListener('mouseenter', () => { cursorEl.style.display = 'block'; });
+
+// 🔥 ТАЧСКРИН (ТЕЛЕФОН)
+canvas.addEventListener('touchstart', e => {
+    e.preventDefault(); // Блокируем зум/скролл
+    mDown = true;
+    const touch = e.touches[0];
+    const pos = getGridPos(touch.clientX, touch.clientY);
+    lx = pos.x; ly = pos.y;
+    place(lx, ly, current);
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault(); // Блокируем зум/скролл
+    if (!mDown) return;
+    const touch = e.touches[0];
+    const pos = getGridPos(touch.clientX, touch.clientY);
+    if (lx !== -1) line(lx, ly, pos.x, pos.y, current);
+    lx = pos.x; ly = pos.y;
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    mDown = false; lx = -1; ly = -1;
+});
+
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    brush = Math.max(1, Math.min(12, brush + (e.deltaY < 0 ? 1 : -1)));
+    document.getElementById('brushRange').value = brush;
+    document.getElementById('brushVal').textContent = brush;
+    updateCursor();
+});
+
+document.querySelectorAll('.btn[data-el]').forEach(b => {
+    b.addEventListener('click', () => {
+        document.querySelectorAll('.btn[data-el]').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        
+        const elementName = b.dataset.el;
+        
+        if (elementName === 'erase') {
+            current = EMPTY;
+        } else {
+            const map = {
+                'sand': SAND, 'water': WATER, 'fire': FIRE, 'stone': STONE,
+                'wood': WOOD, 'metal': METAL, 'glass': GLASS, 'plant': PLANT,
+                'oil': OIL, 'acid': ACID, 'lava': LAVA, 'gunpowder': GUNPOWDER,
+                'steam': STEAM, 'ice': ICE, 'cloner': CLONER, 'ash': ASH
+            };
+            current = map[elementName] || SAND;
+        }
+        updateCursor();
+    });
+});
+
+document.getElementById('clearBtn').onclick = () => {
+    grid.fill(EMPTY); life.fill(0); colors.fill(0);
+};
+
+let paused = false;
+document.getElementById('btnPause').onclick = function() {
+    paused = !paused;
+    this.textContent = paused ? '▶️ Старт' : '⏸️ Пауза';
+};
+
+document.getElementById('brushRange').oninput = function() {
+    brush = +this.value;
+    document.getElementById('brushVal').textContent = brush;
+    updateCursor();
+};
+
+let fc = 0, ft = performance.now();
+(function loop() {
+    fc++;
+    if (performance.now() - ft >= 1000) {
+        let cnt = 0;
+        for (let i = 0; i < grid.length; i++) {
+            if (grid[i] !== EMPTY) cnt++;
+        }
+        document.getElementById('info').textContent = `Частиц: ${cnt} | FPS: ${fc}`;
+        fc = 0; ft = performance.now();
+    }
+    if (!paused) step();
+    draw();
+    requestAnimationFrame(loop);
+})();
+
+cursorEl.style.display = 'none';
+</script>
+</body>
+</html>
